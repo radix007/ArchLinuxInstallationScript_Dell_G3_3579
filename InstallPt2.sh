@@ -108,5 +108,5 @@ systemctl enable NetworkManager.service
 
 
 echo Reboot now 
-echo Enter exit then enter reboot and then remove the installation media
+echo Enter exit or ctrl-d , then enter reboot and then remove the installation media
 
