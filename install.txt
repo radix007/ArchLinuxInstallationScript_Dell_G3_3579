@@ -1,0 +1,351 @@
+View this installation guide online at
+https://wiki.archlinux.org/index.php/Installation_Guide
+
+   This document is a guide for installing Arch Linux from the live system
+   booted with the official installation image. Before installing, it
+   would be advised to view the FAQ. For conventions used in this
+   document, see Help:Reading. In particular, code examples may contain
+   placeholders (formatted in italics) that must be replaced manually.
+
+   For more detailed instructions, see the respective ArchWiki articles or
+   the various programs' man pages, both linked from this guide. For
+   interactive help, the IRC channel and the forums are also available.
+
+   Arch Linux should run on any x86_64-compatible machine with a minimum
+   of 512 MiB RAM. A basic installation should take less than 800 MiB of
+   disk space. As the installation process needs to retrieve packages from
+   a remote repository, this guide assumes a working internet connection
+   is available.
+   [ ]
+
+Contents
+
+     * 1 Pre-installation
+          + 1.1 Verify signature
+          + 1.2 Boot the live environment
+          + 1.3 Set the keyboard layout
+          + 1.4 Verify the boot mode
+          + 1.5 Connect to the internet
+          + 1.6 Update the system clock
+          + 1.7 Partition the disks
+               o 1.7.1 Example layouts
+          + 1.8 Format the partitions
+          + 1.9 Mount the file systems
+     * 2 Installation
+          + 2.1 Select the mirrors
+          + 2.2 Install essential packages
+     * 3 Configure the system
+          + 3.1 Fstab
+          + 3.2 Chroot
+          + 3.3 Time zone
+          + 3.4 Localization
+          + 3.5 Network configuration
+          + 3.6 Initramfs
+          + 3.7 Root password
+          + 3.8 Boot loader
+     * 4 Reboot
+     * 5 Post-installation
+
+Pre-installation
+
+   The installation media and their GnuPG signatures can be acquired from
+   the Download page.
+
+Verify signature
+
+   It is recommended to verify the image signature before use, especially
+   when downloading from an HTTP mirror, where downloads are generally
+   prone to be intercepted to serve malicious images.
+
+   On a system with GnuPG installed, do this by downloading the PGP
+   signature (under Checksums) to the ISO directory, and verifying it
+   with:
+$ gpg --keyserver-options auto-key-retrieve --verify archlinux-version-x86_64.is
+o.sig
+
+   Alternatively, from an existing Arch Linux installation run:
+$ pacman-key -v archlinux-version-x86_64.iso.sig
+
+   Note:
+     * The signature itself could be manipulated if it is downloaded from
+       a mirror site, instead of from archlinux.org as above. In this
+       case, ensure that the public key, which is used to decode the
+       signature, is signed by another, trustworthy key. The gpg command
+       will output the fingerprint of the public key.
+     * Another method to verify the authenticity of the signature is to
+       ensure that the public key's fingerprint is identical to the key
+       fingerprint of the Arch Linux developer who signed the ISO-file.
+       See Wikipedia:Public-key cryptography for more information on the
+       public-key process to authenticate keys.
+
+Boot the live environment
+
+   The live environment can be booted from a USB flash drive, an optical
+   disc or a network with PXE. For alternative means of installation, see
+   Category:Installation process.
+     * Pointing the current boot device to a drive containing the Arch
+       installation media is typically achieved by pressing a key during
+       the POST phase, as indicated on the splash screen. Refer to your
+       motherboard's manual for details.
+     * When the Arch menu appears, select Boot Arch Linux and press Enter
+       to enter the installation environment.
+     * See README.bootparams for a list of boot parameters, and
+       packages.x86_64 for a list of included packages.
+     * You will be logged in on the first virtual console as the root
+       user, and presented with a Zsh shell prompt.
+
+   To switch to a different console--for example, to view this guide with
+   ELinks alongside the installation--use the Alt+arrow shortcut. To edit
+   configuration files, nano, vi and vim are available.
+
+Set the keyboard layout
+
+   The default console keymap is US. Available layouts can be listed with:
+# ls /usr/share/kbd/keymaps/**/*.map.gz
+
+   To modify the layout, append a corresponding file name to loadkeys(1),
+   omitting path and file extension. For example, to set a German keyboard
+   layout:
+# loadkeys de-latin1
+
+   Console fonts are located in /usr/share/kbd/consolefonts/ and can
+   likewise be set with setfont(8).
+
+Verify the boot mode
+
+   If UEFI mode is enabled on an UEFI motherboard, Archiso will boot Arch
+   Linux accordingly via systemd-boot. To verify this, list the efivars
+   directory:
+# ls /sys/firmware/efi/efivars
+
+   If the directory does not exist, the system may be booted in BIOS or
+   CSM mode. Refer to your motherboard's manual for details.
+
+Connect to the internet
+
+   To set up a network connection, go through the following steps:
+     * Ensure your network interface is listed and enabled, for example
+       with ip-link(8):
+# ip link
+     * Connect to the network. Plug in the Ethernet cable or connect to
+       the wireless LAN.
+     * Configure your network connection:
+          + Static IP address
+          + Dynamic IP address: use DHCP.
+
+                Note: The installation image enables dhcpcd
+                (dhcpcd@interface.service) for wired network devices on
+                boot.
+
+     * The connection may be verified with ping:
+# ping archlinux.org
+
+Update the system clock
+
+   Use timedatectl(1) to ensure the system clock is accurate:
+# timedatectl set-ntp true
+
+   To check the service status, use timedatectl status.
+
+Partition the disks
+
+   When recognized by the live system, disks are assigned to a block
+   device such as /dev/sda or /dev/nvme0n1. To identify these devices, use
+   lsblk or fdisk.
+# fdisk -l
+
+   Results ending in rom, loop or airoot may be ignored.
+
+   The following partitions are required for a chosen device:
+     * One partition for the root directory /.
+     * If UEFI is enabled, an EFI system partition.
+
+   If you want to create any stacked block devices for LVM, system
+   encryption or RAID, do it now.
+
+Example layouts
+
+   BIOS with MBR
+   Mount point Partition Partition type Suggested size
+   /mnt /dev/sdX1 Linux Remainder of the device
+   [SWAP] /dev/sdX2 Linux swap More than 512 MiB
+   UEFI with GPT
+   Mount point Partition Partition type Suggested size
+   /mnt/boot or /mnt/efi /dev/sdX1 EFI system partition 260-512 MiB
+   /mnt /dev/sdX2 Linux x86-64 root (/) Remainder of the device
+   [SWAP] /dev/sdX3 Linux swap More than 512 MiB
+
+   See also Partitioning#Example layouts.
+   Note:
+     * Use fdisk or parted to modify partition tables, for example fdisk
+       /dev/sdX.
+     * Swap space can be set on a swap file for file systems supporting
+       it.
+
+Format the partitions
+
+   Once the partitions have been created, each must be formatted with an
+   appropriate file system. For example, if the root partition is on
+   /dev/sdX1 and will contain the ext4 file system, run:
+# mkfs.ext4 /dev/sdX1
+
+   If you created a partition for swap, initialize it with mkswap:
+# mkswap /dev/sdX2
+# swapon /dev/sdX2
+
+   See File systems#Create a file system for details.
+
+Mount the file systems
+
+   Mount the file system on the root partition to /mnt, for example:
+# mount /dev/sdX1 /mnt
+
+   Create any remaining mount points (such as /mnt/efi) and mount their
+   corresponding partitions.
+
+   genfstab will later detect mounted file systems and swap space.
+
+Installation
+
+Select the mirrors
+
+   Packages to be installed must be downloaded from mirror servers, which
+   are defined in /etc/pacman.d/mirrorlist. On the live system, all
+   mirrors are enabled, and sorted by their synchronization status and
+   speed at the time the installation image was created.
+
+   The higher a mirror is placed in the list, the more priority it is
+   given when downloading a package. You may want to edit the file
+   accordingly, and move the geographically closest mirrors to the top of
+   the list, although other criteria should be taken into account.
+
+   This file will later be copied to the new system by pacstrap, so it is
+   worth getting right.
+
+Install essential packages
+
+   Use the pacstrap script to install the base package, Linux kernel and
+   firmware for common hardware:
+# pacstrap /mnt base linux linux-firmware
+
+   Tip: You can substitute linux for a kernel package of your choice. You
+   can omit the installation of the kernel or the firmware package if you
+   know what you are doing.
+
+   The base package does not include all tools from the live installation,
+   so installing other packages may be necessary for a fully functional
+   base system. In particular, consider installing:
+     * userspace utilities for the management of file systems that will be
+       used on the system,
+     * utilities for accessing RAID or LVM partitions,
+     * specific firmware for other devices not included in linux-firmware,
+     * software necessary for networking,
+     * a text editor,
+     * packages for accessing documentation in man and info pages: man-db,
+       man-pages and texinfo.
+
+   To install other packages or package groups, append the names to the
+   pacstrap command above (space separated) or use pacman while chrooted
+   into the new system. For comparison, packages available in the live
+   system can be found in packages.x86_64.
+
+Configure the system
+
+Fstab
+
+   Generate an fstab file (use -U or -L to define by UUID or labels,
+   respectively):
+# genfstab -U /mnt >> /mnt/etc/fstab
+
+   Check the resulting /mnt/etc/fstab file, and edit it in case of errors.
+
+Chroot
+
+   Change root into the new system:
+# arch-chroot /mnt
+
+Time zone
+
+   Set the time zone:
+# ln -sf /usr/share/zoneinfo/Region/City /etc/localtime
+
+   Run hwclock(8) to generate /etc/adjtime:
+# hwclock --systohc
+
+   This command assumes the hardware clock is set to UTC. See System
+   time#Time standard for details.
+
+Localization
+
+   Uncomment en_US.UTF-8 UTF-8 and other needed locales in
+   /etc/locale.gen, and generate them with:
+# locale-gen
+
+   Create the locale.conf(5) file, and set the LANG variable accordingly:
+/etc/locale.conf
+LANG=en_US.UTF-8
+
+   If you set the keyboard layout, make the changes persistent in
+   vconsole.conf(5):
+/etc/vconsole.conf
+KEYMAP=de-latin1
+
+Network configuration
+
+   Create the hostname file:
+/etc/hostname
+myhostname
+
+   Add matching entries to hosts(5):
+/etc/hosts
+127.0.0.1       localhost
+::1             localhost
+127.0.1.1       myhostname.localdomain  myhostname
+
+   If the system has a permanent IP address, it should be used instead of
+   127.0.1.1.
+
+   Complete the network configuration for the newly installed environment,
+   that includes installing packages such as iputils and your preferred
+   network management software.
+
+Initramfs
+
+   Creating a new initramfs is usually not required, because mkinitcpio
+   was run on installation of the kernel package with pacstrap.
+
+   For LVM, system encryption or RAID, modify mkinitcpio.conf(5) and
+   recreate the initramfs image:
+# mkinitcpio -P
+
+Root password
+
+   Set the root password:
+# passwd
+
+Boot loader
+
+   Choose and install a Linux-capable boot loader. If you have an Intel or
+   AMD CPU, enable microcode updates in addition.
+
+Reboot
+
+   Exit the chroot environment by typing exit or pressing Ctrl+d.
+
+   Optionally manually unmount all the partitions with umount -R /mnt:
+   this allows noticing any "busy" partitions, and finding the cause with
+   fuser(1).
+
+   Finally, restart the machine by typing reboot: any partitions still
+   mounted will be automatically unmounted by systemd. Remember to remove
+   the installation media and then login into the new system with the root
+   account.
+
+Post-installation
+
+   See General recommendations for system management directions and
+   post-installation tutorials (like setting up a graphical user
+   interface, sound or a touchpad).
+
+   For a list of applications that may be of interest, see List of
+   applications.
